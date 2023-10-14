@@ -1,0 +1,8 @@
+flask
+werkzeug
+Pillow
+redis
+bcrypt
+flask_pymongo
+flask_limiter
+flask_cors
