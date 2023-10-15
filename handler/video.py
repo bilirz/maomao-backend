@@ -34,16 +34,16 @@ def get_videos():
 
         # 查询上传者的名称
         user = mongo.db.user.find_one({"uid": video["uid"]})
-        video["uploader_name"] = user.get("name") if user else "Unknown"
+        video["uploader_name"] = user.get("name") if user else "未知"
 
         # 如果视频被隐藏，查询操作人的名称
         if "hidden" in video and "uid" in video["hidden"]:
             operator = mongo.db.user.find_one({"uid": video["hidden"]["uid"]})
-            video["hidden"]["operator_name"] = operator.get("name") if operator else "Unknown"
+            video["hidden"]["operator_name"] = operator.get("name") if operator else "未知"
             # 删除uid字段，只留下operator_name字段
             video["hidden"].pop("uid", None)
         elif "hidden" in video:
-            video["hidden"]["operator_name"] = "Unknown"
+            video["hidden"]["operator_name"] = "未知"
 
     return jsonify({"data": videos, "hasMore": has_more})
 
@@ -264,10 +264,10 @@ def get_comments(aid):
     for index, comment in enumerate(comments):
         comment["_id"] = str(comment["_id"])
         user = mongo.db.user.find_one({"uid": comment["uid"]})
-        comment["username"] = user["name"] if user else "Unknown"
+        comment["username"] = user["name"] if user else "未知"
         for reply in comment['replies']:
             reply_user = mongo.db.user.find_one({"uid": reply["uid"]})
-            reply['username'] = reply_user['name'] if reply_user else "Unknown"
+            reply['username'] = reply_user['name'] if reply_user else "未知"
         comment["floor"] = total_floor - index  # 逆向分配楼层号
 
     return jsonify(comments)
@@ -319,16 +319,16 @@ def get_hot_videos():
         video.pop('_id', None)
         
         user = mongo.db.user.find_one({"uid": video["uid"]})
-        video["uploader_name"] = user.get("name") if user else "Unknown"
+        video["uploader_name"] = user.get("name") if user else "未知"
 
         # 如果视频被隐藏，查询操作人的名称
         if "hidden" in video and "uid" in video["hidden"]:
             operator = mongo.db.user.find_one({"uid": video["hidden"]["uid"]})
-            video["hidden"]["operator_name"] = operator.get("name") if operator else "Unknown"
+            video["hidden"]["operator_name"] = operator.get("name") if operator else "未知"
             # 删除uid字段，只留下operator_name字段
             video["hidden"].pop("uid", None)
         elif "hidden" in video:
-            video["hidden"]["operator_name"] = "Unknown"
+            video["hidden"]["operator_name"] = "未知"
 
         formatted_videos.append(video)
 
