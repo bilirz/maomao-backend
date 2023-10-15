@@ -34,10 +34,16 @@ def get_videos():
 
         # 查询上传者的名称
         user = mongo.db.user.find_one({"uid": video["uid"]})
-        if user:
-            video["uploader_name"] = user.get("name")
-        else:
-            video["uploader_name"] = "Unknown"
+        video["uploader_name"] = user.get("name") if user else "Unknown"
+
+        # 如果视频被隐藏，查询操作人的名称
+        if "hidden" in video and "uid" in video["hidden"]:
+            operator = mongo.db.user.find_one({"uid": video["hidden"]["uid"]})
+            video["hidden"]["operator_name"] = operator.get("name") if operator else "Unknown"
+            # 删除uid字段，只留下operator_name字段
+            video["hidden"].pop("uid", None)
+        elif "hidden" in video:
+            video["hidden"]["operator_name"] = "Unknown"
 
     return jsonify({"data": videos, "hasMore": has_more})
 
@@ -270,6 +276,7 @@ from datetime import datetime
 import math
 from flask import jsonify, request
 
+
 @bp.route('/hot-list', methods=['GET'])
 def get_hot_videos():
     start = int(request.args.get('start', 1)) - 1  # 转换为基于0的索引
@@ -313,6 +320,15 @@ def get_hot_videos():
         
         user = mongo.db.user.find_one({"uid": video["uid"]})
         video["uploader_name"] = user.get("name") if user else "Unknown"
+
+        # 如果视频被隐藏，查询操作人的名称
+        if "hidden" in video and "uid" in video["hidden"]:
+            operator = mongo.db.user.find_one({"uid": video["hidden"]["uid"]})
+            video["hidden"]["operator_name"] = operator.get("name") if operator else "Unknown"
+            # 删除uid字段，只留下operator_name字段
+            video["hidden"].pop("uid", None)
+        elif "hidden" in video:
+            video["hidden"]["operator_name"] = "Unknown"
 
         formatted_videos.append(video)
 
