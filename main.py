@@ -1,8 +1,8 @@
 # 第三方库导入
 from flask import Flask, jsonify, send_from_directory
 # 应用/模块内部导入
-from extensions import mongo, limiter, cors
-from handler import user, upload, video, admin, ai
+from extensions import mongo, limiter, cors, socketio
+from handler import user, upload, video, admin, ai, space
 import config
 
 
@@ -12,12 +12,14 @@ app.config.from_object(config)
 mongo.init_app(app)
 limiter.init_app(app)
 cors.init_app(app)
+socketio.init_app(app)
 
 app.register_blueprint(user.bp)
 app.register_blueprint(upload.bp)
 app.register_blueprint(video.bp)
 app.register_blueprint(admin.bp)
 app.register_blueprint(ai.bp)
+app.register_blueprint(space.bp)
 
 
 @app.route('/', defaults={'path': ''})
@@ -31,6 +33,7 @@ def serve(path):
 @app.errorhandler(429)
 def ratelimit_error(e):
     return jsonify(error="ratelimit exceeded", message=str(e.description)), 429
+
 
 if __name__ == '__main__':
     app.run()

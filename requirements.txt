@@ -7,3 +7,4 @@ flask_pymongo
 flask_limiter
 flask_cors
 cos-python-sdk-v5
+Flask-SocketIO

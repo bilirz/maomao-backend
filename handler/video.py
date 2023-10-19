@@ -244,19 +244,36 @@ def get_hot_videos():
 
     video_scores = []
 
+    SMOOTHING = 10
+
     for video in videos_cursor:
         aid = video["aid"]
+        views = video["data"]["view"]
+        print()
+
+        # 排除播放量小于10的视频
+        if views < 10:
+            continue
+
         video_date = datetime.utcfromtimestamp(video["time"])
         days_since_release = (now - video_date).days
-        # 应用对数衰减来避免给新视频过多的权重
         time_decay_factor = 1 / (1 + math.log(1 + days_since_release))
-        
+
+        likes = video["data"]["like"]
+        comments = comments_map.get(aid, 0)
+
+        like_view_ratio = (likes + SMOOTHING) / (views + SMOOTHING)
+        comment_view_ratio = (comments + SMOOTHING) / (views + SMOOTHING)
+
         score = (
-            video["data"]["view"] * 0.5 +  
-            video["data"]["like"] * 10 + 
-            comments_map.get(aid, 0) * 2 +
-            time_decay_factor  # 时间衰减因子
+            views * 3 + 
+            likes * 6 + 
+            comments * 1.5 +
+            like_view_ratio * 50 +  
+            comment_view_ratio * 40 + 
+            time_decay_factor
         )
+        
         video_scores.append((video, score))
 
     # 按分数排序
