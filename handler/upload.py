@@ -18,8 +18,8 @@ def get_video_upload_folder():
     return os.path.join(current_app.root_path, current_app.config['VIDEO_UPLOAD_FOLDER'])
 
 
-def get_image_upload_folder():
-    return os.path.join(current_app.root_path, current_app.config['IMAGE_UPLOAD_FOLDER'])
+def get_cover_upload_folder():
+    return os.path.join(current_app.root_path, current_app.config['COVER_UPLOAD_FOLDER '])
 
 
 def allowed_file(filename):
@@ -91,28 +91,31 @@ def submit_form():
 
         if not video_filename or not cover_file:
             return jsonify(state='error', message='未提供视频或封面文件名'), 400
+        
+        if cover_file and cover_file.content_length > 5 * 1024 * 1024:
+            return jsonify(state='error', message='封面大小超过5M，请重新上传'), 400
 
         video_upload_folder = get_video_upload_folder()
-        image_upload_folder = get_image_upload_folder()
+        cover_upload_folder = get_cover_upload_folder()
 
         video_path = os.path.join(video_upload_folder, video_filename)
         _, video_extension = os.path.splitext(video_filename)
         video_extension = video_extension[1:].lower()
 
-        image_filename = secure_filename(cover_file.filename)
-        image_path = os.path.join(image_upload_folder, image_filename)
-        _, image_extension = os.path.splitext(image_filename)
-        image_extension = image_extension[1:].lower()
+        cover_filename = secure_filename(cover_file.filename)
+        cover_path = os.path.join(cover_upload_folder, cover_filename)
+        _, cover_extension = os.path.splitext(cover_filename)
+        cover_extension = cover_extension[1:].lower()
 
-        cover_file.save(image_path)
+        cover_file.save(cover_path)
 
         current_aid = get_next_sequence_value("video_aid")
 
         # 修改上传到 COS 的路径名
         cos_video_path = f"videos_original/{current_aid}.{video_extension}"
         upload_to_cos(video_path, cos_video_path)
-        cos_cover_path = f"covers_original/{current_aid}.{image_filename}"
-        upload_to_cos(image_path, cos_cover_path)
+        cos_cover_path = f"covers_original/{current_aid}.{cover_filename}"
+        upload_to_cos(cover_path, cos_cover_path)
 
         tags = request.form.get("tags").split(',')
         if len(tags) != len(set(tags)):

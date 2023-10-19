@@ -1,6 +1,7 @@
 # 标准库导入
 import time
 import random
+import os
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.header import Header
@@ -10,9 +11,11 @@ import smtplib
 from flask import Blueprint, request, session, jsonify, current_app
 import redis
 from redis.lock import Lock
+from werkzeug.utils import secure_filename
 # 应用/模块内部导入
 from extensions import mongo, limiter
 from utils import login_required
+from cos import upload_to_cos
 
 bp = Blueprint('user', __name__, url_prefix='/api/user')
 r = redis.StrictRedis(host='localhost', port=6379, db=0)
@@ -37,9 +40,6 @@ def signin():
         if bcrypt_check(str(request_json['password']), user['password']):
             session['user'] = {
                 'uid': user['uid'],
-                'name': user['name'],
-                'email': user['email'],
-                'status': user['status'],
                 'signin': True,
             }
             return jsonify(state='succeed', message='登录成功')
@@ -69,12 +69,12 @@ def signup():
 
         if coll.find_one({'email': request_json['email']}) is None:
             if coll.find_one() is None:
-                user_id = 1
+                uid = 1
             else:
-                user_id = coll.find_one(sort=[('_id', -1)])['uid'] + 1
+                uid = coll.find_one(sort=[('_id', -1)])['uid'] + 1
             hashed_password, salt = bcrypt_hash(str(request_json['password']))
             document = {
-                'uid': user_id,
+                'uid': uid,
                 'email': request_json['email'],
                 'name': request_json['name'],
                 'password': hashed_password,
@@ -189,10 +189,15 @@ def getSession():
         
         return jsonify({
             **session['user'],
-            'can_checkin': can_checkin,
-            'last_checkin': last_checkin_timestamp,  # 直接返回时间戳
-            'experience': user["checkin"].get('experience', 0),
-            'points': user["checkin"].get('points', 0)
+            'name': user['name'],
+            'email': user['email'],
+            'status': user['status'],
+            'checkin':{
+              'can_checkin': can_checkin,
+              'last_checkin': last_checkin_timestamp,  # 直接返回时间戳
+              'experience': user["checkin"].get('experience', 0),
+              'points': user["checkin"].get('points', 0)
+            }
         })
     else:
         return jsonify({'signin': False, 'status': 0, 'state': 'no_session'})
@@ -202,3 +207,38 @@ def getSession():
 def signout():
     session.clear()
     return jsonify(state='succeed', message='成功登出')
+
+
+@bp.route('/update', methods=['POST'])
+@login_required
+def update_profile():
+    coll = mongo.db.user
+    new_name = request.form.get('name')
+    cover_file = request.files.get('cover')
+
+    if not new_name:
+        return jsonify(state='error', message='名字为必填项'), 400
+
+    uid = session['user'].get('uid')
+    error_message = None
+
+    if cover_file:
+        if cover_file.content_length > 5 * 1024 * 1024:
+            return jsonify(state='error', message='封面大小超过5M，请重新上传'), 400
+        
+        filename = f"{uid}.jpg"
+        temp_path = os.path.join(current_app.config['FACE_UPLOAD_FOLDER'], filename)
+        cover_file.save(temp_path)
+
+        cos_file_path = f"face_original/{filename}"
+        error_message = upload_to_cos(temp_path, cos_file_path)
+
+        os.remove(temp_path)
+
+    # 只有当上传没有错误时才更新数据库
+    if not error_message:
+        coll.update_one({"uid": uid}, {"$set": {"name": new_name}})
+    else:
+        return jsonify(state='error', message=error_message), 500
+
+    return jsonify(state='succeed', message='名字修改成功'), 200
