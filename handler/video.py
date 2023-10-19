@@ -76,8 +76,8 @@ def get_video_info(aid):
     # 查询指定aid的视频信息
     video = mongo.db.video.find_one({"aid": aid})
     if not video:
-        return jsonify({"message": "Video not found"}), 404
-    # 如果不想在输出中显示MongoDB的_id字段
+        return jsonify({"message": "无法找到视频"}), 404
+    
     video.pop('_id', None)
     return jsonify(video)
 

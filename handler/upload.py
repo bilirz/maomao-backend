@@ -114,30 +114,49 @@ def submit_form():
         cos_cover_path = f"covers_original/{current_aid}.{image_filename}"
         upload_to_cos(image_path, cos_cover_path)
 
-        # 还原 coll.insert_one
+        tags = request.form.get("tags").split(',')
+        if len(tags) != len(set(tags)):
+            return "标签重复，请检查并重新提交", 400
+        
+        # 检查每个标签的长度
+        for tag in tags:
+            if len(tag) > 12:
+                return "每个标签的长度不能超过12个字符！", 400
+
+        # 检查标签总数
+        if len(tags) > 12:
+            return "最多只能有12个标签！", 400
+        
+        # 检查是否有重复标签
+        if len(tags) != len(set(tags)):
+            return "标签重复，请检查并重新提交", 400
+        
         coll = mongo.db.video
         coll.insert_one({
-            'aid': current_aid,
-            'title': request.form.get("title"),
-            'category': int(request.form.get("category")),
-            'description': request.form.get("description"),
-            'time': time.time(),
-            'uid': session['user']['uid'],
-            'data': {
-                'view': 0,
-                'like': 0,
-                'dislike': 0,
-                'coin': 0,
-                'share': 0,
-                'favorite': 0,
-                'danmaku': 0
-            },
-            "hidden": {
-                "is_hidden": False,  # 默认不隐藏
-                'reason': '',
-                'grade': ''  # TODO: 视频封禁等级 1:仅隐藏，不删除视频 2:直接删除视频
-            }
-        })
+          'aid': current_aid,
+          'title': request.form.get("title"),
+          'category': int(request.form.get("category")),
+          'description': request.form.get("description"),
+          'time': time.time(),
+          'uid': session['user']['uid'],
+          'tags': request.form.get("tags").split(','),
+          'source': request.form.get("source"),
+          'origin': request.form.get("origin"),
+          'data': {
+              'view': 0,
+              'like': 0,
+              'dislike': 0,
+              'coin': 0,
+              'share': 0,
+              'favorite': 0,
+              'danmaku': 0
+          },
+          "hidden": {
+              "is_hidden": False,  # 默认不隐藏
+              'reason': '',
+              'grade': ''  # TODO: 视频封禁等级 1:仅隐藏，不删除视频 2:直接删除视频
+          }
+      })
     finally:
         lock.release()
 
