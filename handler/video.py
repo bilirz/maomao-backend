@@ -1,9 +1,9 @@
 # 标准库导入
 import os
 import math
-from datetime import datetime, timedelta
+from datetime import datetime
 # 第三方库导入
-from flask import Blueprint, jsonify, send_from_directory, current_app, request, session
+from flask import Blueprint, jsonify, request, session
 # 应用/模块内部导入
 from extensions import mongo
 from utils import login_required
@@ -48,47 +48,6 @@ def get_videos():
     return jsonify({"data": videos, "hasMore": has_more})
 
 
-@bp.route('/cover/<int:aid>', methods=['GET'])
-def video_cover(aid):
-    cover_filename = f"{aid}.jpg"
-    cover_path = os.path.join(current_app.config['IMAGE_UPLOAD_FOLDER'], cover_filename)
-    if not os.path.exists(cover_path):
-        return jsonify({"message": "封面图片未找到"}), 404
-    return send_from_directory(current_app.config['IMAGE_UPLOAD_FOLDER'], cover_filename)
-
-
-@bp.route('/<int:aid>/index.m3u8', methods=['GET'])
-def video_file(aid):
-    video_filename = "index.m3u8"
-
-    # 创建完整路径，例如：'./hls_videos/1/index.m3u8'
-    video_path = os.path.join(current_app.config['HLS_VIDEO_FOLDER'], str(aid), video_filename)
-
-    if not os.path.exists(video_path):
-        return jsonify({"message": "视频文件未找到"}), 404
-
-    # 从aid目录发送index.m3u8文件
-    return send_from_directory(os.path.join(current_app.config['HLS_VIDEO_FOLDER'], str(aid)), video_filename, mimetype="application/vnd.apple.mpegurl")
-
-@bp.route('/<int:aid>/<path:filename>', methods=['GET'])
-def video_segment(aid, filename):
-    # 创建完整路径，例如：'./hls_videos/1/somefile.ts'
-    video_segment_path = os.path.join(current_app.config['HLS_VIDEO_FOLDER'], str(aid), filename)
-
-    if not os.path.exists(video_segment_path):
-        return jsonify({"message": "文件未找到"}), 404
-
-    # 检查文件是否是.ts文件
-    if filename.endswith('.ts'):
-        mimetype = "video/MP2T"
-    elif filename.endswith('.m3u8'):
-        mimetype = "application/vnd.apple.mpegurl"
-    else:
-        mimetype = None  # Flask将自动设置MIME类型
-
-    return send_from_directory(os.path.join(current_app.config['HLS_VIDEO_FOLDER'], str(aid)), filename, mimetype=mimetype)
-
-
 @bp.route('/add/view/<int:aid>', methods=['POST'])
 def add_view(aid):
     client_ip = request.headers.get("CF-Connecting-IP", request.remote_addr)
@@ -103,10 +62,7 @@ def add_view(aid):
         return jsonify({"message": "播放量增加成功"})
     else:
         last_viewed = ip_record["views"].get(str(aid), None)
-        if last_viewed:
-            # 将datetime对象转换为时间戳
-            last_viewed_timestamp = last_viewed.timestamp()
-        if not last_viewed or last_viewed_timestamp < thirty_minutes_ago:
+        if not last_viewed or last_viewed < thirty_minutes_ago:
             ip_record["views"][str(aid)] = now
             mongo.db.video_ip_view.update_one({"ip": client_ip}, {"$set": {"views": ip_record["views"]}})
             mongo.db.video.update_one({"aid": aid}, {"$inc": {"data.view": 1}})
@@ -180,7 +136,6 @@ def post_comment(aid):
 
     if len(content) > 200:
         return jsonify({"message": "评论长度不能超过200字"}), 400
-    print(is_on_cool_down(uid, content))
     if is_on_cool_down(uid, content):
         return jsonify({"message": "请等待3秒后再评论或确保内容不与上一次相同"}), 400
 
@@ -255,6 +210,7 @@ def post_reply(comment_id):
 
     return jsonify({"message": "回复成功"})
 
+
 @bp.route('/comments/<int:aid>', methods=['GET'])
 def get_comments(aid):
     cursor = mongo.db.comment.find({"aid": aid}).sort("time", -1)  # 先按时间降序排序
@@ -271,10 +227,6 @@ def get_comments(aid):
         comment["floor"] = total_floor - index  # 逆向分配楼层号
 
     return jsonify(comments)
-
-from datetime import datetime
-import math
-from flask import jsonify, request
 
 
 @bp.route('/hot-list', methods=['GET'])

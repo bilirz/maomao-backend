@@ -2,7 +2,7 @@
 from flask import Flask, jsonify, send_from_directory
 # 应用/模块内部导入
 from extensions import mongo, limiter, cors
-from handler import user, upload, video, admin
+from handler import user, upload, video, admin, ai
 import config
 
 
@@ -17,6 +17,8 @@ app.register_blueprint(user.bp)
 app.register_blueprint(upload.bp)
 app.register_blueprint(video.bp)
 app.register_blueprint(admin.bp)
+app.register_blueprint(ai.bp)
+
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
