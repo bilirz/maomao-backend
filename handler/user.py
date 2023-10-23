@@ -63,6 +63,16 @@ def signup():
         coll = mongo.db.user
         request_json = request.get_json()
 
+        auth = request_json['auth']
+
+        auth_entry = mongo.db.user_auth.find_one({'email': request_json['email']})
+        if not auth_entry:
+            return jsonify(state='error', message='请先获取验证码')
+        elif auth_entry['auth'] != auth:
+            return jsonify(state='error', message='验证码不正确')
+        elif time.time() - auth_entry['time'] > 5 * 60:
+            return jsonify(state='error', message='验证码已过期，请重新获取')
+
         user_name_length = len(request_json['name'])
         if user_name_length < 3 or user_name_length > 10:
             return jsonify(state='error', message='名字长度需要在3-10之间')
