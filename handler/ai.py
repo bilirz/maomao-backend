@@ -8,6 +8,7 @@ from extensions import mongo
 
 bp = Blueprint('ai', __name__, url_prefix='/api/ai')
 
+
 @bp.route('/video', methods=['POST'])
 def ai_video():
     print(request.get_json())

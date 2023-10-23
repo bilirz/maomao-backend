@@ -5,6 +5,7 @@ from flask_pymongo import PyMongo
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_cors import CORS
+from flask_socketio import SocketIO
 
 
 mongo = PyMongo()
@@ -14,6 +15,8 @@ limiter = Limiter(
 )
 
 cors = CORS(supports_credentials=True)
+
+socketio = SocketIO(cors_allowed_origins="*")
 
 
 # def setup_logging(app):

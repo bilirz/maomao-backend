@@ -131,12 +131,10 @@ dmypy.json
 
 /config.py
 
-/temp-videos/
 /videos/
-/hls_videos/
 
-/temp-images/
-/images/
+/covers/
+/faces/
 
 /idea/
 /vscode/

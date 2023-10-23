@@ -7,7 +7,8 @@ MAX_CONTENT_LENGTH = 100 * 1024 * 1024
 STATIC_FOLDER = './dist'
 TEMPLATE_FOLDER = './dist'
 VIDEO_UPLOAD_FOLDER = './videos'
-IMAGE_UPLOAD_FOLDER = './images'
+COVER_UPLOAD_FOLDER = './covers'
+FACE_UPLOAD_FOLDER = './faces'
 
 # 数据库配置
 MONGO_URI = 'mongodb://localhost:27017/mao'
