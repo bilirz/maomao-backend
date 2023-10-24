@@ -63,9 +63,13 @@ def signup():
         coll = mongo.db.user
         request_json = request.get_json()
 
+        # 转换邮件地址为小写
+        email = request_json['email'].lower()
+
         auth = request_json['auth']
 
-        auth_entry = mongo.db.user_auth.find_one({'email': request_json['email']})
+        auth_entry = mongo.db.user_auth.find_one({'email': email})
+        
         if not auth_entry:
             return jsonify(state='error', message='请先获取验证码')
         elif auth_entry['auth'] != auth:
@@ -77,7 +81,7 @@ def signup():
         if user_name_length < 3 or user_name_length > 10:
             return jsonify(state='error', message='名字长度需要在3-10之间')
 
-        if coll.find_one({'email': request_json['email']}) is None:
+        if coll.find_one({'email': email}) is None:
             if coll.find_one() is None:
                 uid = 1
             else:
@@ -85,7 +89,7 @@ def signup():
             hashed_password, salt = bcrypt_hash(str(request_json['password']))
             document = {
                 'uid': uid,
-                'email': request_json['email'],
+                'email': email,
                 'name': request_json['name'],
                 'password': hashed_password,
                 'salt': salt,
