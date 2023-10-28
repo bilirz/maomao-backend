@@ -1,7 +1,10 @@
+from datetime import timedelta
+
 # 基础或全局配置
 DEBUG = True
 SECRET_KEY = ''
 MAX_CONTENT_LENGTH = 100 * 1024 * 1024
+PERMANENT_SESSION_LIFETIME = timedelta(days=30)
 
 # 路径和文件夹配置
 STATIC_FOLDER = './dist'
