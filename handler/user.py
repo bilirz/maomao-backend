@@ -11,7 +11,6 @@ import smtplib
 from flask import Blueprint, request, session, jsonify, current_app
 import redis
 from redis.lock import Lock
-from werkzeug.utils import secure_filename
 # 应用/模块内部导入
 from extensions import mongo, limiter
 from utils import login_required
@@ -42,6 +41,7 @@ def signin():
                 'uid': user['uid'],
                 'signin': True,
             }
+            session.permanent = True
             return jsonify(state='succeed', message='登录成功')
         else:
             return jsonify(state='error', message='密码错误')
