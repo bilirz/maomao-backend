@@ -69,6 +69,7 @@ def signup():
         auth = request_json['auth']
 
         auth_entry = mongo.db.user_auth.find_one({'email': email})
+        
         if not auth_entry:
             return jsonify(state='error', message='请先获取验证码')
         elif auth_entry['auth'] != auth:
