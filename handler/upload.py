@@ -10,7 +10,7 @@ from redis.lock import Lock
 import redis
 # 应用/模块内部导入
 from extensions import mongo, limiter
-from utils import login_required
+from utils import login_required, adjust_points_and_exp
 from cos import upload_to_cos
 
 bp = Blueprint('upload', __name__, url_prefix='/api/upload')
@@ -150,9 +150,15 @@ def submit_form():
 
         # 修改上传到 COS 的路径名
         cos_video_path = f"videos_original/{current_aid}.{video_extension}"
-        upload_to_cos(video_path, cos_video_path)
         cos_cover_path = f"covers_original/{current_aid}.jpg"
-        upload_to_cos(cover_path, cos_cover_path)
+
+        success, message = upload_to_cos(video_path, cos_video_path)
+        if not success:
+            return jsonify(state='error', message=message), 500
+
+        success, message = upload_to_cos(cover_path, cos_cover_path)
+        if not success:
+            return jsonify(state='error', message=message), 500
 
         tags = request.form.get("tags").split(',')
         if len(tags) != len(set(tags)):
@@ -198,7 +204,8 @@ def submit_form():
               'reason': '',
               'grade': ''  # TODO: 视频封禁等级 1:仅隐藏，不删除视频 2:直接删除视频
           }
-      })
+        })
+        adjust_points_and_exp(session['user']['uid'], -1, 1, reason=f"发布{current_aid}视频")
     finally:
         lock.release()
 

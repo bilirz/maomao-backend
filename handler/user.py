@@ -13,7 +13,7 @@ import redis
 from redis.lock import Lock
 # 应用/模块内部导入
 from extensions import mongo, limiter
-from utils import login_required
+from utils import login_required, adjust_points_and_exp
 from cos import upload_to_cos
 
 bp = Blueprint('user', __name__, url_prefix='/api/user')
@@ -235,6 +235,9 @@ def update_profile():
 
     uid = session['user'].get('uid')
     error_message = None
+    
+    adjust_points_and_exp(uid, -5, 5, reason="修改头像或名字")
+
 
     if cover_file:
         if cover_file.content_length > 5 * 1024 * 1024:

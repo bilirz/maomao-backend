@@ -6,7 +6,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request, session
 # 应用/模块内部导入
 from extensions import mongo
-from utils import login_required
+from utils import login_required, adjust_points_and_exp
 
 
 bp = Blueprint('video', __name__, url_prefix='/api/video')
@@ -88,23 +88,34 @@ def toggle_like_video(aid):
     uid = session['user']['uid']
     user_record = mongo.db.video_like.find_one({"uid": uid})
 
+    video_record = mongo.db.video.find_one({"aid": aid})
+    if not video_record:
+        return jsonify({"message": "视频不存在", "likes": 0}), 404
+    
+    video_uploader_uid = video_record["uid"]
+
     # 用户记录还不存在
     if not user_record:
         mongo.db.video_like.insert_one({"uid": uid, "liked_videos": [aid]})
         mongo.db.video.update_one({"aid": aid}, {"$inc": {"data.like": 1}})
+        adjust_points_and_exp(video_uploader_uid, 10, reason=f"视频{aid}被点赞")  # 加10积分
         return jsonify({"message": "点赞成功", "likes": 1})
+
     else:
         # 用户已点赞
         if aid in user_record["liked_videos"]:
             user_record["liked_videos"].remove(aid)
             mongo.db.video_like.update_one({"uid": uid}, {"$set": {"liked_videos": user_record["liked_videos"]}})
             mongo.db.video.update_one({"aid": aid}, {"$inc": {"data.like": -1}})
+            adjust_points_and_exp(video_uploader_uid, -10, reason=f"视频{aid}点赞被取消")  # 扣10积分
             return jsonify({"message": "取消点赞成功", "likes": -1})
+
         # 用户还未点赞
         else:
             user_record["liked_videos"].append(aid)
             mongo.db.video_like.update_one({"uid": uid}, {"$set": {"liked_videos": user_record["liked_videos"]}})
             mongo.db.video.update_one({"aid": aid}, {"$inc": {"data.like": 1}})
+            adjust_points_and_exp(video_uploader_uid, 10, reason=f"视频{aid}被点赞")  # 加10积分
             return jsonify({"message": "点赞成功", "likes": 1})
 
 

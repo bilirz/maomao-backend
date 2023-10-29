@@ -4,7 +4,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request, session
 # 应用/模块内部导入
 from extensions import mongo
-from utils import login_required
+from utils import login_required, adjust_points_and_exp
 
 
 bp = Blueprint('comment', __name__, url_prefix='/api/comment')
@@ -69,6 +69,12 @@ def post_comment(page_type, aid):
         {"$set": {"time": datetime.now().timestamp(), "content": content}},
         upsert=True  # 如果不存在则插入新记录
     )
+
+    if aid is None:
+        adjust_points_and_exp(uid, -0.2, 0.2, reason=f"在{page_type}页面发布评论")
+    else:
+        adjust_points_and_exp(uid, -0.2, 0.2, reason=f"在视频aid:{aid}下发布评论")
+        
 
     return jsonify({"message": "评论发布成功"})
 

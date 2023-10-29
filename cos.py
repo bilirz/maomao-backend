@@ -11,5 +11,6 @@ cos_client = CosS3Client(cos_config)
 def upload_to_cos(local_file_path, cos_file_name):
     try:
         cos_client.upload_file(Bucket=config.COS_BUCKET, LocalFilePath=local_file_path, Key=cos_file_name)
+        return True, ""
     except Exception as e:
-        return f'错误: {e}'
+        return False, f'错误: {e}'
