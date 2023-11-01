@@ -13,7 +13,7 @@ import redis
 from redis.lock import Lock
 # 应用/模块内部导入
 from extensions import mongo, limiter
-from utils import login_required, adjust_points_and_exp
+from utils import login_required, adjust_points_and_exp, get_exp_rank
 from cos import upload_to_cos
 
 bp = Blueprint('user', __name__, url_prefix='/api/user')
@@ -170,13 +170,7 @@ def checkin():
         return jsonify(state='error', message='还未到签到时间，每8小时可签到一次。')
 
     # 更新签到时间、经验和积分
-    mongo.db.user.update_one(
-        {"uid": uid},
-        {
-            "$set": {"checkin.last_checkin": now.timestamp()},  # 使用时间戳
-            "$inc": {"checkin.experience": 10, "checkin.points": 10}
-        }
-    )
+    adjust_points_and_exp(uid, 10, 10, reason=f"签到")
 
     return jsonify(state='success', message='签到成功，+10经验，+10积分')
 
@@ -200,6 +194,8 @@ def getSession():
         now_timestamp = datetime.now().timestamp()
 
         can_checkin = not last_checkin_timestamp or now_timestamp - last_checkin_timestamp >= 8 * 3600  # 8 hours in seconds
+
+        user_exp = user["checkin"].get('experience', 0)
         
         return jsonify({
             **session['user'],
@@ -209,13 +205,13 @@ def getSession():
             'checkin':{
               'can_checkin': can_checkin,
               'last_checkin': last_checkin_timestamp,  # 直接返回时间戳
-              'experience': user["checkin"].get('experience', 0),
-              'points': user["checkin"].get('points', 0)
+              'experience': user_exp,
+              'points': user["checkin"].get('points', 0),
+              'exp_rank': get_exp_rank(user_exp)  # 返回经验排名
             }
         })
     else:
         return jsonify({'signin': False, 'status': 0, 'state': 'no_session'})
-    
 
 @bp.route('/signout', methods=['POST'])
 def signout():
@@ -259,3 +255,25 @@ def update_profile():
         return jsonify(state='error', message=error_message), 500
 
     return jsonify(state='succeed', message='名字修改成功'), 200
+
+
+@bp.route('/rank', methods=['GET'])
+def get_rank():
+    top_users_cursor = mongo.db.user.find().sort([("checkin.experience", -1)]).limit(30)
+
+    top_users_list = list(top_users_cursor)
+
+    result = []
+    rank = 1  # 初始化排名计数器
+    for user in top_users_list:
+        user_data = {
+            "name": user.get("name"),
+            "uid": user.get("uid"),
+            "experience": user.get("checkin", {}).get("experience", 0),
+            "time": user.get("time"),
+            "rank": rank  # 在每个用户数据中加入排名信息
+        }
+        result.append(user_data)
+        rank += 1  # 更新排名计数器
+
+    return jsonify(result)

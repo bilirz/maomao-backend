@@ -4,12 +4,12 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request, session
 # 应用/模块内部导入
 from extensions import mongo
-from utils import login_required, adjust_points_and_exp
+from utils import login_required, adjust_points_and_exp, get_exp_rank
 
 
 bp = Blueprint('comment', __name__, url_prefix='/api/comment')
 
-ALLOWED_PAGE_TYPES = ["video", "index", "log"]
+ALLOWED_PAGE_TYPES = ["video", "index", "log", "about", "faq", "rank"]
 
 def is_on_cool_down(uid, content):
     # 根据uid查找该用户的最后一次评论
@@ -130,7 +130,6 @@ def post_reply(page_type, comment_id):
 @bp.route('/<string:page_type>', defaults={'aid': None}, methods=['GET'])
 @bp.route('/<string:page_type>/<int:aid>', methods=['GET'])
 def get_comments(page_type, aid):
-    print(aid)
     if page_type not in ALLOWED_PAGE_TYPES:
         return jsonify({"message": "Invalid URL"}), 400
 
@@ -143,13 +142,25 @@ def get_comments(page_type, aid):
     comments = list(cursor)
 
     total_floor = len(comments) # 获取评论的总数
+
     for index, comment in enumerate(comments):
         comment["_id"] = str(comment["_id"])
+        
         user = mongo.db.user.find_one({"uid": comment["uid"]})
         comment["username"] = user["name"] if user else "未知"
+        if user:
+            comment["exp_rank"] = get_exp_rank(user['checkin']['experience'])
+        else:
+            comment["exp_rank"] = "未知"
+        
         for reply in comment['replies']:
             reply_user = mongo.db.user.find_one({"uid": reply["uid"]})
             reply['username'] = reply_user['name'] if reply_user else "未知"
+            if reply_user:
+                reply["exp_rank"] = get_exp_rank(reply_user['checkin']['experience'])
+            else:
+                reply["exp_rank"] = "未知"
+
         comment["floor"] = total_floor - index  # 逆向分配楼层号
 
     return jsonify(comments)

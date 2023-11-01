@@ -2,6 +2,7 @@
 from flask import Blueprint, jsonify, request, session
 # 应用/模块内部导入
 from extensions import mongo
+from utils import get_exp_rank, login_required
 
 
 bp = Blueprint('space', __name__, url_prefix='/api/space')
@@ -48,10 +49,13 @@ def get_uid_info(uid):
     if not user_info:
         return jsonify(state='error', message='用户名未找到'), 404
 
+    user_exp = user_info.get("checkin", {}).get("experience", 0)
+
     data = {
         "name": user_info.get("name"),
         "registration_time": user_info.get("time"),
-        "experience": user_info.get("checkin", {}).get("experience"),
+        "experience": user_exp,
+        "exp_rank": get_exp_rank(user_exp),  # 添加用户的经验排名
         "followers_count": len(user_info.get("followers", [])),
         "following_count": len(user_info.get("following", []))
     }
@@ -60,6 +64,7 @@ def get_uid_info(uid):
 
 
 @bp.route('/follow/<int:target_uid>', methods=['POST'])
+@login_required
 def follow_user(target_uid):  # target_uid 表示想关注或取消关注的用户
     current_uid = session['user']['uid']
 

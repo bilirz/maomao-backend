@@ -152,13 +152,9 @@ def submit_form():
         cos_video_path = f"videos_original/{current_aid}.{video_extension}"
         cos_cover_path = f"covers_original/{current_aid}.jpg"
 
-        success, message = upload_to_cos(video_path, cos_video_path)
-        if not success:
-            return jsonify(state='error', message=message), 500
+        upload_to_cos(video_path, cos_video_path)
 
-        success, message = upload_to_cos(cover_path, cos_cover_path)
-        if not success:
-            return jsonify(state='error', message=message), 500
+        upload_to_cos(cover_path, cos_cover_path)
 
         tags = request.form.get("tags").split(',')
         if len(tags) != len(set(tags)):
@@ -253,18 +249,22 @@ def merge_video_chunk():
     video_upload_folder = get_video_upload_folder()
     merged_video_path = os.path.join(video_upload_folder, f"{unique_id}.mp4")
 
-    with open(merged_video_path, 'wb') as merged_file:
-        for i in range(total_chunks):
-            chunk_info = mongo.db.video_chunk.find_one({'unique_id': unique_id, 'index': i})
-            if not chunk_info:
-                return jsonify(state='error', message=f'分片 {i} 丢失'), 500
+    # 为了效率，预先生成所有要合并的分片的文件路径
+    chunk_paths = []
+    for i in range(total_chunks):
+        chunk_info = mongo.db.video_chunk.find_one({'unique_id': unique_id, 'index': i})
+        if not chunk_info:
+            return jsonify(state='error', message=f'分片 {i} 丢失'), 500
+        chunk_paths.append(os.path.join(video_upload_folder, chunk_info['chunk_filename']))
 
-            chunk_path = os.path.join(video_upload_folder, chunk_info['chunk_filename'])
+    # 使用with语句确保文件描述符在完成后关闭
+    with open(merged_video_path, 'wb') as merged_file:
+        for chunk_path in chunk_paths:
             with open(chunk_path, 'rb') as chunk_file:
                 merged_file.write(chunk_file.read())
-            os.remove(chunk_path)
+            os.remove(chunk_path)  # 确保删除每个已合并的分片
 
-
+    # 删除与此 unique_id 相关的所有分片记录
     mongo.db.video_chunk.delete_many({'unique_id': unique_id})
 
     return jsonify(state='success', message='视频合并成功', filename=f"{unique_id}.mp4")

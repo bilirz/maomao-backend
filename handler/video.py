@@ -1,7 +1,7 @@
 # 标准库导入
 import os
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 # 第三方库导入
 from flask import Blueprint, jsonify, request, session
 # 应用/模块内部导入
@@ -15,15 +15,26 @@ bp = Blueprint('video', __name__, url_prefix='/api/video')
 def get_videos():
     start = request.args.get('start', default=1, type=int)
     count = request.args.get('count', default=10, type=int)
+    sort_by = request.args.get('sort_by', default="time")
     
-    # 排序条件：根据时间从新到旧排序
-    page_number = max((start - 1) // count, 0)  # 计算页数，确保页数至少为0
+    # 计算页数，确保页数至少为0
+    page_number = max((start - 1) // count, 0)
     skip_amount = page_number * count
 
-    cursor = (mongo.db.video.find()
-          .sort([("time", -1)])  # 按照发布时间从新到旧排序
-          .skip(skip_amount)
-          .limit(count + 1))
+    if sort_by == "random":
+        cursor = list(mongo.db.video.aggregate([
+            {"$sample": {"size": count + 1}}  # 使用$sample进行随机选择
+        ]))
+    else:
+        if sort_by == "view":
+            sort_criteria = [("data.view", -1)]
+        else:
+            sort_criteria = [("time", -1)]
+
+        cursor = (mongo.db.video.find()
+              .sort(sort_criteria)
+              .skip(skip_amount)
+              .limit(count + 1))
     
     videos = list(cursor)
     has_more = len(videos) > count
@@ -123,8 +134,19 @@ def toggle_like_video(aid):
 def get_hot_videos():
     start = int(request.args.get('start', 1)) - 1  # 转换为基于0的索引
     count = int(request.args.get('count', 10))
+    within_two_weeks = request.args.get('within_two_weeks', 'true').lower() == 'true'  # 默认为false
+    
     now = datetime.now()
-    videos_cursor = mongo.db.video.find()
+    
+    # 如果within_two_weeks为true，则只选取两周内的视频
+    if within_two_weeks:
+        two_weeks_ago = now - timedelta(days=14)
+        video_filter = {"time": {"$gte": two_weeks_ago.timestamp()}}
+    else:
+        video_filter = {}  # 否则选取所有视频
+
+    videos_cursor = mongo.db.video.find(video_filter)
+    
     comments_cursor = mongo.db.comment.aggregate([
         {"$group": {"_id": "$aid", "total_comments": {"$sum": 1}}}
     ])
@@ -133,13 +155,11 @@ def get_hot_videos():
     comments_map = {item["_id"]: item["total_comments"] for item in comments_cursor}
 
     video_scores = []
-
     SMOOTHING = 10
 
     for video in videos_cursor:
         aid = video["aid"]
         views = video["data"]["view"]
-        print()
 
         # 排除播放量小于10的视频
         if views < 10:
@@ -169,7 +189,7 @@ def get_hot_videos():
     # 按分数排序
     video_scores.sort(key=lambda x: x[1], reverse=True)
 
-    # TOP20
+    # 分页
     end = start + count
     paged_video_objects = [video[0] for video in video_scores[start:end]]
 
