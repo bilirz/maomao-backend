@@ -58,3 +58,9 @@ def adjust_points_and_exp(uid, points, exp=0, reason=''):
     mongo.db.point_exp_log.insert_one(log)
 
     return {"status": "success", "message": "积分和经验调整成功"}
+
+
+def get_exp_rank(exp=0):
+    """获取当前用户的经验值排名"""
+    rank = mongo.db.user.count_documents({"checkin.experience": {"$gt": exp}})
+    return rank + 1  # 因为count_documents会返回高于给定经验值的用户数，所以需要+1来得到实际的排名
