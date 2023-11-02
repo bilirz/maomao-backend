@@ -169,6 +169,12 @@ def checkin():
     if last_checkin and now - last_checkin < timedelta(hours=8):
         return jsonify(state='error', message='还未到签到时间，每8小时可签到一次。')
 
+    mongo.db.user.update_one(
+        {"uid": uid},
+        {
+            "$set": {"checkin.last_checkin": now.timestamp()},
+        }
+    )
     # 更新签到时间、经验和积分
     adjust_points_and_exp(uid, 10, 10, reason=f"签到")
 
