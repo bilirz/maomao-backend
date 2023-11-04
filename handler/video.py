@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request, session
 # 应用/模块内部导入
 from extensions import mongo
-from utils import login_required, adjust_points_and_exp
+from utils import login_required, adjust_points_and_exp, get_real_ip
 
 
 bp = Blueprint('video', __name__, url_prefix='/api/video')
@@ -61,7 +61,7 @@ def get_videos():
 
 @bp.route('/add/view/<int:aid>', methods=['POST'])
 def add_view(aid):
-    client_ip = request.headers.get("CF-Connecting-IP", request.remote_addr)
+    client_ip = get_real_ip(request)
     ip_record = mongo.db.video_ip_view.find_one({"ip": client_ip})
     now = datetime.now().timestamp() # 获取当前时间戳
     thirty_minutes_ago = now - 30 * 60  # 30分钟前的时间戳

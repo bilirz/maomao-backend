@@ -4,6 +4,7 @@ import time
 from flask import Blueprint, jsonify, request
 # 应用/模块内部导入
 from extensions import mongo
+from utils import get_real_ip
 
 bp = Blueprint('online', __name__, url_prefix='/api/online')
 
@@ -13,6 +14,7 @@ bp = Blueprint('online', __name__, url_prefix='/api/online')
 # @socketio.on('connect')
 # def user_connected():
 #     ip = request.headers.get('CF-Connecting-IP', request.remote_addr)
+#     ip = get_real_ip(request)
 #     try:
 #         connected_users.add(ip)
 #     except:
@@ -24,6 +26,7 @@ bp = Blueprint('online', __name__, url_prefix='/api/online')
 # @socketio.on('disconnect')
 # def user_disconnected():
 #     ip = request.headers.get('CF-Connecting-IP', request.remote_addr)
+#     ip = get_real_ip(request)
 #     try:
 #         connected_users.remove(ip)
 #     except:
