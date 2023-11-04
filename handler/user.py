@@ -13,7 +13,7 @@ import redis
 from redis.lock import Lock
 # 应用/模块内部导入
 from extensions import mongo, limiter
-from utils import login_required, adjust_points_and_exp, get_exp_rank
+from utils import login_required, adjust_points_and_exp, get_exp_rank, get_real_ip
 from cos import upload_to_cos
 
 bp = Blueprint('user', __name__, url_prefix='/api/user')
@@ -51,7 +51,7 @@ def signin():
 
 @bp.route('/signup', methods=['POST'])
 def signup():
-    client_ip = request.headers.get('CF-Connecting-IP') or request.headers.get('X-Forwarded-For') or request.remote_addr
+    client_ip = get_real_ip(request)
     lock_name = f"signup_lock_{client_ip}"
     lock = Lock(r, lock_name, timeout=300)  # 锁定300秒，限制每个IP每5分钟只能注册一次
 
@@ -169,6 +169,12 @@ def checkin():
     if last_checkin and now - last_checkin < timedelta(hours=8):
         return jsonify(state='error', message='还未到签到时间，每8小时可签到一次。')
 
+    mongo.db.user.update_one(
+        {"uid": uid},
+        {
+            "$set": {"checkin.last_checkin": now.timestamp()},
+        }
+    )
     # 更新签到时间、经验和积分
     adjust_points_and_exp(uid, 10, 10, reason=f"签到")
 
@@ -224,7 +230,7 @@ def signout():
 def update_profile():
     coll = mongo.db.user
     new_name = request.form.get('name')
-    cover_file = request.files.get('cover')
+    face_file = request.files.get('face')
 
     if not new_name:
         return jsonify(state='error', message='名字为必填项'), 400
@@ -234,28 +240,26 @@ def update_profile():
     
     adjust_points_and_exp(uid, -5, 5, reason="修改头像或名字")
 
-
-    if cover_file:
-        if cover_file.content_length > 5 * 1024 * 1024:
+    if face_file:
+        if face_file.content_length > 5 * 1024 * 1024:
             return jsonify(state='error', message='封面大小超过5M，请重新上传'), 400
         
         filename = f"{uid}.jpg"
         temp_path = os.path.join(current_app.config['FACE_UPLOAD_FOLDER'], filename)
-        cover_file.save(temp_path)
+        face_file.save(temp_path)
 
         cos_file_path = f"face_original/{filename}"
-        error_message = upload_to_cos(temp_path, cos_file_path)
+        success, error_message = upload_to_cos(temp_path, cos_file_path)
 
         os.remove(temp_path)
 
-    # 只有当上传没有错误时才更新数据库
-    if not error_message:
-        coll.update_one({"uid": uid}, {"$set": {"name": new_name}})
-    else:
-        return jsonify(state='error', message=error_message), 500
+        # 如果上传到COS出现错误，返回错误消息
+        if not success:
+            return jsonify(state='error', message=error_message), 500
 
+    # 更新数据库
+    coll.update_one({"uid": uid}, {"$set": {"name": new_name}})
     return jsonify(state='succeed', message='名字修改成功'), 200
-
 
 @bp.route('/rank', methods=['GET'])
 def get_rank():

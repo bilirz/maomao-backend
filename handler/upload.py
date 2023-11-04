@@ -10,7 +10,7 @@ from redis.lock import Lock
 import redis
 # 应用/模块内部导入
 from extensions import mongo, limiter
-from utils import login_required, adjust_points_and_exp
+from utils import login_required, adjust_points_and_exp, get_real_ip
 from cos import upload_to_cos
 
 bp = Blueprint('upload', __name__, url_prefix='/api/upload')
@@ -105,7 +105,7 @@ def upload_video_temporarily():
 @login_required
 @bp.route('/submit', methods=['POST'])
 def submit_form():
-    client_ip = request.headers.get('CF-Connecting-IP') or request.headers.get('X-Forwarded-For') or request.remote_addr
+    client_ip = get_real_ip(request)
     lock_name = f"submit_lock_{client_ip}"
     lock = Lock(r, lock_name, timeout=60)  # 锁定60秒
     

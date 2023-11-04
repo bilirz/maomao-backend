@@ -7,8 +7,8 @@ from flask import jsonify, session
 from extensions import mongo
 
 
-# 判断是否登录
 def login_required(f):
+    """判断是否登录"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user' not in session:
@@ -18,6 +18,7 @@ def login_required(f):
 
 
 def admin_required(f):
+    """判断是否是管理员"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         uid = session['user']['uid']
@@ -64,3 +65,9 @@ def get_exp_rank(exp=0):
     """获取当前用户的经验值排名"""
     rank = mongo.db.user.count_documents({"checkin.experience": {"$gt": exp}})
     return rank + 1  # 因为count_documents会返回高于给定经验值的用户数，所以需要+1来得到实际的排名
+
+
+def get_real_ip(request):
+    forwarded_for = request.headers.get('X-Forwarded-For', '').split(',')
+    real_ip = forwarded_for[0].strip() if forwarded_for else request.remote_addr
+    return real_ip
