@@ -18,26 +18,30 @@ r = redis.StrictRedis(host='localhost', port=6379, db=0)
 
 
 def get_video_upload_folder():
+    """获取视频上传文件夹的路径"""
     return os.path.join(current_app.root_path, current_app.config['VIDEO_UPLOAD_FOLDER'])
 
 
 def get_cover_upload_folder():
+    """获取封面上传文件夹的路径"""
     return os.path.join(current_app.root_path, current_app.config['COVER_UPLOAD_FOLDER'])
 
 
 def allowed_file(filename):
+    """检查文件扩展名是否合法"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower()
 
 
 def get_next_sequence_value(sequence_name):
+    """从counter数据库获取下一个视频ID"""
     coll = mongo.db.counter
     sequence_document = coll.find_one_and_update(
-        {'_id': sequence_name}, 
+        {'_id': sequence_name},
         {'$inc': {'sequence_value': 1}},
         upsert=True,
         return_document=True
     )
-    
+
     if not sequence_document:
         coll.insert_one({'_id': sequence_name, 'sequence_value': 1})
         return 1
@@ -75,6 +79,7 @@ def get_next_sequence_value(sequence_name):
 @login_required
 @bp.route('/video', methods=['POST'])
 def upload_video_temporarily():
+    """上传视频"""
     if 'user' not in session:
         return jsonify(state='error', message='用户未登录'), 403
 
@@ -105,13 +110,15 @@ def upload_video_temporarily():
 @login_required
 @bp.route('/submit', methods=['POST'])
 def submit_form():
+    """提交视频"""
     client_ip = get_real_ip(request)
     lock_name = f"submit_lock_{client_ip}"
     lock = Lock(r, lock_name, timeout=60)  # 锁定60秒
-    
-    forbidden_tags = ["自制", "转载", "游戏", "生活", "知识", "科技", "音乐", "鬼畜", "动画", "时尚", "舞蹈", "娱乐", "美食", "动物"]
 
-    if not lock.acquire(blocking=False):  
+    forbidden_tags = ["自制", "转载", "游戏", "生活", "知识", "科技",
+                      "音乐", "鬼畜", "动画", "时尚", "舞蹈", "娱乐", "美食", "动物"]
+
+    if not lock.acquire(blocking=False):
         return jsonify(state='error', message='来自该IP的请求过于频繁'), 429
 
     try:
@@ -123,19 +130,17 @@ def submit_form():
 
         if not video_filename or not cover_file:
             return jsonify(state='error', message='未提供视频或封面文件名'), 400
-        
+
         if cover_file and cover_file.content_length > 5 * 1024 * 1024:
             return jsonify(state='error', message='封面大小超过5M，请重新上传'), 400
 
         video_upload_folder = get_video_upload_folder()
         cover_upload_folder = get_cover_upload_folder()
 
-
-
         unique_id = request.form.get("unique_id")  # 获取合并后的文件的唯一ID
         if not unique_id:
             return jsonify(state='error', message='未提供合并后的视频文件ID'), 400
-        
+
         video_path = os.path.join(video_upload_folder, f"{unique_id}.mp4")
         video_extension = "mp4"  # 合并后的文件是MP4格式
 
@@ -159,7 +164,7 @@ def submit_form():
         tags = request.form.get("tags").split(',')
         if len(tags) != len(set(tags)):
             return "标签重复，请检查并重新提交", 400
-        
+
         # 检查每个标签的长度
         for tag in tags:
             if len(tag) > 12:
@@ -170,38 +175,39 @@ def submit_form():
         # 检查标签总数
         if len(tags) > 12:
             return "最多只能有12个标签！", 400
-        
+
         # 检查是否有重复标签
         if len(tags) != len(set(tags)):
             return "标签重复，请检查并重新提交", 400
-        
+
         coll = mongo.db.video
         coll.insert_one({
-          'aid': current_aid,
-          'title': request.form.get("title"),
-          'category': int(request.form.get("category")),
-          'description': request.form.get("description"),
-          'time': time.time(),
-          'uid': session['user']['uid'],
-          'tags': request.form.get("tags").split(','),
-          'source': request.form.get("source"),
-          'origin': request.form.get("origin"),
-          'data': {
-              'view': 0,
-              'like': 0,
-              'dislike': 0,
-              'coin': 0,
-              'share': 0,
-              'favorite': 0,
-              'danmaku': 0
-          },
-          "hidden": {
-              "is_hidden": False,  # 默认不隐藏
-              'reason': '',
-              'grade': ''  # TODO: 视频封禁等级 1:仅隐藏，不删除视频 2:直接删除视频
-          }
+            'aid': current_aid,
+            'title': request.form.get("title"),
+            'category': int(request.form.get("category")),
+            'description': request.form.get("description"),
+            'time': time.time(),
+            'uid': session['user']['uid'],
+            'tags': request.form.get("tags").split(','),
+            'source': request.form.get("source"),
+            'origin': request.form.get("origin"),
+            'data': {
+                'view': 0,
+                'like': 0,
+                'dislike': 0,
+                'coin': 0,
+                'share': 0,
+                'favorite': 0,
+                'danmaku': 0
+            },
+            "hidden": {
+                "is_hidden": False,  # 默认不隐藏
+                'reason': '',
+                'grade': ''  # TODO: 视频封禁等级 1:仅隐藏，不删除视频 2:直接删除视频
+            }
         })
-        adjust_points_and_exp(session['user']['uid'], -1, 1, reason=f"发布{current_aid}视频")
+        adjust_points_and_exp(
+            session['user']['uid'], -1, 1, reason=f"发布{current_aid}视频")
     finally:
         lock.release()
 
@@ -211,13 +217,14 @@ def submit_form():
 @bp.route('/video/chunk', methods=['POST'])
 @login_required
 def upload_video_chunk():
+    """上传视频分片"""
     if 'file' not in request.files:
         return jsonify(state='error', message='无文件'), 400
 
     chunk = request.files['file']
     unique_id = request.form.get('unique_id')
     chunk_index = int(request.form.get('index', 0))
-    
+
     video_upload_folder = get_video_upload_folder()
 
     if not os.path.exists(video_upload_folder):
@@ -226,7 +233,6 @@ def upload_video_chunk():
     chunk_filename = f"{unique_id}_chunk_{chunk_index}.part"
     chunk_path = os.path.join(video_upload_folder, chunk_filename)
     chunk.save(chunk_path)
-
 
     coll = mongo.db.video_chunk
     coll.insert_one({
@@ -243,6 +249,7 @@ def upload_video_chunk():
 @bp.route('/video/merge', methods=['POST'])
 @login_required
 def merge_video_chunk():
+    """合并视频分片"""
     unique_id = request.json.get('unique_id')
     total_chunks = int(request.json.get('total', 0))
 
@@ -252,10 +259,12 @@ def merge_video_chunk():
     # 为了效率，预先生成所有要合并的分片的文件路径
     chunk_paths = []
     for i in range(total_chunks):
-        chunk_info = mongo.db.video_chunk.find_one({'unique_id': unique_id, 'index': i})
+        chunk_info = mongo.db.video_chunk.find_one(
+            {'unique_id': unique_id, 'index': i})
         if not chunk_info:
             return jsonify(state='error', message=f'分片 {i} 丢失'), 500
-        chunk_paths.append(os.path.join(video_upload_folder, chunk_info['chunk_filename']))
+        chunk_paths.append(os.path.join(
+            video_upload_folder, chunk_info['chunk_filename']))
 
     # 使用with语句确保文件描述符在完成后关闭
     with open(merged_video_path, 'wb') as merged_file:

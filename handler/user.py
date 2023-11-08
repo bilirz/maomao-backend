@@ -20,11 +20,12 @@ bp = Blueprint('user', __name__, url_prefix='/api/user')
 r = redis.StrictRedis(host='localhost', port=6379, db=0)
 
 
-# bcrypt加密
 def bcrypt_hash(password):
+    """bcrypt加密"""
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
     return hashed.decode('utf-8'), salt.decode('utf-8')
+
 
 def bcrypt_check(password, hashed_password):
     return bcrypt.checkpw(password.encode('utf-8'), hashed_password.encode('utf-8'))
@@ -32,9 +33,10 @@ def bcrypt_check(password, hashed_password):
 
 @bp.route('/signin', methods=['POST'])
 def signin():
+    """登录"""
     coll = mongo.db.user
     request_json = request.get_json()
-    user = coll.find_one({'email':request_json['email']})
+    user = coll.find_one({'email': request_json['email']})
     if user is not None:
         if bcrypt_check(str(request_json['password']), user['password']):
             session['user'] = {
@@ -51,12 +53,13 @@ def signin():
 
 @bp.route('/signup', methods=['POST'])
 def signup():
+    """注册"""
     client_ip = get_real_ip(request)
     lock_name = f"signup_lock_{client_ip}"
     lock = Lock(r, lock_name, timeout=300)  # 锁定300秒，限制每个IP每5分钟只能注册一次
 
     # 非阻塞模式下尝试获取锁
-    if not lock.acquire(blocking=False):  
+    if not lock.acquire(blocking=False):
         return jsonify(state='error', message='来自该IP的请求过于频繁，请5分钟后再试'), 429
 
     try:
@@ -69,7 +72,7 @@ def signup():
         auth = request_json['auth']
 
         auth_entry = mongo.db.user_auth.find_one({'email': email})
-        
+
         if not auth_entry:
             return jsonify(state='error', message='请先获取验证码')
         elif auth_entry['auth'] != auth:
@@ -107,12 +110,15 @@ def signup():
 @limiter.limit("1 per minute")
 @bp.route('/signup/auth', methods=['POST'])
 def signup_auth():
+    """注册验证码"""
     auth = ''.join([str(random.randint(0, 9)) for _ in range(6)])
-    
+
     request_json = request.get_json()
-    
-    smtp = smtplib.SMTP_SSL(current_app.config['MAIL_SERVER'], current_app.config['MAIL_PORT'])
-    smtp.login(user=current_app.config['MAIL_USERNAME'], password=current_app.config['MAIL_PASSWORD'])
+
+    smtp = smtplib.SMTP_SSL(
+        current_app.config['MAIL_SERVER'], current_app.config['MAIL_PORT'])
+    smtp.login(user=current_app.config['MAIL_USERNAME'],
+               password=current_app.config['MAIL_PASSWORD'])
     # TODO: 这里或许可以优化
     mail_msg = f'''
     <div style="border:3px solid #25ACE3; border-radius: 7px; margin: 10px; padding: 20px;">
@@ -129,23 +135,25 @@ def signup_auth():
     <span style='font-size:5px color: #666;'>@认真猫</span>
     </div>
     <div style="text-align: center;">
-        <span style='text-align: center; font-size:2px color: #666;'>BiliRZ 2023 ©All Rights Reserves</span>
+        <span style='text-align: center; font-size:2px color: #666;'>BiliRZ 2023 © All Rights Reserved</span>
     </div>
     '''
     message = MIMEText(mail_msg, 'html', 'utf-8')
     message['From'] = current_app.config['MAIL_USERNAME']
     message['To'] = request_json['email']
-    message['Subject'] = Header(f'猫猫站 - 点击查看验证码', 'utf-8')
+    message['Subject'] = Header('猫猫站 - 点击查看验证码', 'utf-8')
 
-    smtp.sendmail(from_addr=current_app.config['MAIL_USERNAME'], to_addrs=request_json['email'], msg=message.as_string())
-    
+    smtp.sendmail(from_addr=current_app.config['MAIL_USERNAME'],
+                  to_addrs=request_json['email'], msg=message.as_string())
+
     document = {
         'email': request_json['email'],
         'auth': auth,
         'time': time.time(),
     }
 
-    mongo.db.user_auth.replace_one({'email': request_json['email']}, document, upsert=True)
+    mongo.db.user_auth.replace_one(
+        {'email': request_json['email']}, document, upsert=True)
 
     return jsonify(state='succeed', message='验证邮件已发送')
 
@@ -153,16 +161,19 @@ def signup_auth():
 @bp.route('/checkin', methods=['POST'])
 @login_required
 def checkin():
+    """签到"""
     # 获取当前用户
     uid = session['user']['uid']
     user = mongo.db.user.find_one({"uid": uid})
-    
+
     if not user:
         return jsonify(state='error', message='用户不存在')
 
     # 获取上次签到时间
-    last_checkin_timestamp = user["checkin"].get('last_checkin') if "checkin" in user else None
-    last_checkin = datetime.fromtimestamp(last_checkin_timestamp) if last_checkin_timestamp else None
+    last_checkin_timestamp = user["checkin"].get(
+        'last_checkin') if "checkin" in user else None
+    last_checkin = datetime.fromtimestamp(
+        last_checkin_timestamp) if last_checkin_timestamp else None
 
     # 判断是否可以签到
     now = datetime.now()
@@ -183,6 +194,7 @@ def checkin():
 
 @bp.route('/session/get', methods=['GET'])
 def getSession():
+    """获取session"""
     coll = mongo.db.user
     if 'user' in session:
         user = coll.find_one({"uid": session['user']['uid']})
@@ -194,33 +206,38 @@ def getSession():
                 'experience': 0,
                 'points': 0
             }
-            coll.update_one({"uid": session['user']['uid']}, {"$set": {"checkin": user["checkin"]}})
+            coll.update_one({"uid": session['user']['uid']}, {
+                            "$set": {"checkin": user["checkin"]}})
 
-        last_checkin_timestamp = user["checkin"].get('last_checkin') if "checkin" in user else None
+        last_checkin_timestamp = user["checkin"].get(
+            'last_checkin') if "checkin" in user else None
         now_timestamp = datetime.now().timestamp()
 
-        can_checkin = not last_checkin_timestamp or now_timestamp - last_checkin_timestamp >= 8 * 3600  # 8 hours in seconds
+        can_checkin = not last_checkin_timestamp or now_timestamp - \
+            last_checkin_timestamp >= 8 * 3600  # 8 hours in seconds
 
         user_exp = user["checkin"].get('experience', 0)
-        
+
         return jsonify({
             **session['user'],
             'name': user['name'],
             'email': user['email'],
             'status': user['status'],
-            'checkin':{
-              'can_checkin': can_checkin,
-              'last_checkin': last_checkin_timestamp,  # 直接返回时间戳
-              'experience': user_exp,
-              'points': user["checkin"].get('points', 0),
-              'exp_rank': get_exp_rank(user_exp)  # 返回经验排名
+            'checkin': {
+                'can_checkin': can_checkin,
+                'last_checkin': last_checkin_timestamp,  # 直接返回时间戳
+                'experience': user_exp,
+                'points': user["checkin"].get('points', 0),
+                'exp_rank': get_exp_rank(user_exp)  # 返回经验排名
             }
         })
     else:
         return jsonify({'signin': False, 'status': 0, 'state': 'no_session'})
 
+
 @bp.route('/signout', methods=['POST'])
 def signout():
+    """登出"""
     session.clear()
     return jsonify(state='succeed', message='成功登出')
 
@@ -228,6 +245,7 @@ def signout():
 @bp.route('/update', methods=['POST'])
 @login_required
 def update_profile():
+    """更新用户资料"""
     coll = mongo.db.user
     new_name = request.form.get('name')
     face_file = request.files.get('face')
@@ -237,15 +255,16 @@ def update_profile():
 
     uid = session['user'].get('uid')
     error_message = None
-    
+
     adjust_points_and_exp(uid, -5, 5, reason="修改头像或名字")
 
     if face_file:
         if face_file.content_length > 5 * 1024 * 1024:
             return jsonify(state='error', message='封面大小超过5M，请重新上传'), 400
-        
+
         filename = f"{uid}.jpg"
-        temp_path = os.path.join(current_app.config['FACE_UPLOAD_FOLDER'], filename)
+        temp_path = os.path.join(
+            current_app.config['FACE_UPLOAD_FOLDER'], filename)
         face_file.save(temp_path)
 
         cos_file_path = f"face_original/{filename}"
@@ -261,9 +280,12 @@ def update_profile():
     coll.update_one({"uid": uid}, {"$set": {"name": new_name}})
     return jsonify(state='succeed', message='名字修改成功'), 200
 
+
 @bp.route('/rank', methods=['GET'])
 def get_rank():
-    top_users_cursor = mongo.db.user.find().sort([("checkin.experience", -1)]).limit(30)
+    """获取经验排行榜"""
+    top_users_cursor = mongo.db.user.find().sort(
+        [("checkin.experience", -1)]).limit(30)
 
     top_users_list = list(top_users_cursor)
 

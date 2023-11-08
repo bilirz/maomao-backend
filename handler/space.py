@@ -10,17 +10,18 @@ bp = Blueprint('space', __name__, url_prefix='/api/space')
 
 @bp.route('/videos/<int:uid>', methods=['GET'])
 def get_videos_by_uid(uid):
+    """获取指定用户的视频列表"""
     start = request.args.get('start', default=1, type=int)
     count = request.args.get('count', default=10, type=int)
-    
+
     page_number = max((start - 1) // count, 0)
     skip_amount = page_number * count
 
     coll = mongo.db.video
     cursor = (coll.find({'uid': uid})
-             .sort([("time", -1)])
-             .skip(skip_amount)
-             .limit(count + 1))
+              .sort([("time", -1)])
+              .skip(skip_amount)
+              .limit(count + 1))
 
     videos = list(cursor)
     has_more = len(videos) > count
@@ -28,13 +29,14 @@ def get_videos_by_uid(uid):
 
     for video in videos:
         del video["_id"]
-        
+
         user = mongo.db.user.find_one({"uid": video["uid"]})
         video["uploader_name"] = user.get("name") if user else "未知"
-        
+
         if "hidden" in video and "uid" in video["hidden"]:
             operator = mongo.db.user.find_one({"uid": video["hidden"]["uid"]})
-            video["hidden"]["operator_name"] = operator.get("name") if operator else "未知"
+            video["hidden"]["operator_name"] = operator.get(
+                "name") if operator else "未知"
             video["hidden"].pop("uid", None)
         elif "hidden" in video:
             video["hidden"]["operator_name"] = "未知"
@@ -44,6 +46,7 @@ def get_videos_by_uid(uid):
 
 @bp.route('/<int:uid>', methods=['GET'])
 def get_uid_info(uid):
+    """获取指定用户的信息"""
     user_info = mongo.db.user.find_one({'uid': uid})
 
     if not user_info:
@@ -66,11 +69,12 @@ def get_uid_info(uid):
 @bp.route('/follow/<int:target_uid>', methods=['POST'])
 @login_required
 def follow_user(target_uid):  # target_uid 表示想关注或取消关注的用户
+    """关注或取消关注用户"""
     current_uid = session['user']['uid']
 
     if current_uid == target_uid:
         return jsonify(state='error', message='不能关注自己')
-    
+
     coll = mongo.db.user
     target_user = coll.find_one({"uid": target_uid})
 
@@ -81,18 +85,21 @@ def follow_user(target_uid):  # target_uid 表示想关注或取消关注的用�
 
     # 如果用户已经关注了这个UP主，则取消关注
     if target_uid in current_user.get("following", []):
-        coll.update_one({"uid": current_uid}, {"$pull": {"following": target_uid}})
-        coll.update_one({"uid": target_uid}, {"$pull": {"followers": current_uid}})
+        coll.update_one({"uid": current_uid}, {
+                        "$pull": {"following": target_uid}})
+        coll.update_one({"uid": target_uid}, {
+                        "$pull": {"followers": current_uid}})
         return jsonify(state='succeed', message='取消关注成功')
 
     # 否则，添加到关注列表中
     coll.update_one({"uid": current_uid}, {"$push": {"following": target_uid}})
     coll.update_one({"uid": target_uid}, {"$push": {"followers": current_uid}})
     return jsonify(state='succeed', message='关注成功')
-    
+
 
 @bp.route('/is_following/<int:target_uid>', methods=['GET'])
 def is_following(target_uid):
+    """检查当前用户是否关注了目标用户"""
     current_uid = session['user']['uid']
 
     if not current_uid:
