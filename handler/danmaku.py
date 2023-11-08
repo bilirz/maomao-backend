@@ -1,6 +1,10 @@
-from flask import Blueprint, request, jsonify, session
+# 标准库导入
 import time
-
+# 标准库导入
+from datetime import datetime
+# 第三方库导入
+from flask import Blueprint, jsonify, request, session
+# 应用/模块内部导入
 from extensions import mongo
 from utils import login_required, adjust_points_and_exp
 
@@ -55,7 +59,8 @@ def send_danmaku():
         },
         upsert=True
     )
-
+    mongo.db.video.update_one({"aid": aid},{"$inc": {"data.danmaku": 1}})
+    adjust_points_and_exp(session['user']['uid'], -0.2, 0.2, reason=f"在视频aid:{aid}下发送弹幕")
     return jsonify(state="succeed", message="弹幕发送成功", danmaku_id=danmaku_id), 200
 
 

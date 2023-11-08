@@ -31,7 +31,7 @@ def admin_required(f):
 
 def adjust_points_and_exp(uid, points, exp=0, reason=''):
     """为用户调整积分和经验"""
-    
+
     user = mongo.db.user.find_one({"uid": uid})
     if not user:
         return {"status": "error", "message": "用户不存在"}
@@ -68,6 +68,8 @@ def get_exp_rank(exp=0):
 
 
 def get_real_ip(request):
+    """获取真实IP"""
     forwarded_for = request.headers.get('X-Forwarded-For', '').split(',')
-    real_ip = forwarded_for[0].strip() if forwarded_for else request.remote_addr
+    real_ip = forwarded_for[0].strip(
+    ) if forwarded_for else request.remote_addr
     return real_ip

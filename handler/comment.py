@@ -11,10 +11,11 @@ bp = Blueprint('comment', __name__, url_prefix='/api/comment')
 
 ALLOWED_PAGE_TYPES = ["video", "index", "log", "about", "faq", "rank"]
 
+
 def is_on_cool_down(uid, content):
-    # 根据uid查找该用户的最后一次评论
+    """检查用户是否处于冷却状态"""
     last_comment = mongo.db.comment_cool_down.find_one({"uid": uid})
-    
+
     # 如果用户没有评论记录或者已经过了冷却时间，则可以评论
     if not last_comment:
         return False
@@ -31,6 +32,7 @@ def is_on_cool_down(uid, content):
 @bp.route('/<string:page_type>/<int:aid>', methods=['POST'])
 @login_required
 def post_comment(page_type, aid):
+    """发布评论"""
     if page_type not in ALLOWED_PAGE_TYPES:
         return jsonify({"message": "Invalid URL"}), 400
     uid = session['user']['uid']
@@ -63,7 +65,8 @@ def post_comment(page_type, aid):
 
     # 在插入评论后，更新视频的最后一个评论楼层号
     mongo.db.comment.insert_one(comment)
-    mongo.db.video.update_one({"aid": aid}, {"$set": {"last_comment_floor": new_floor}})
+    mongo.db.video.update_one(
+        {"aid": aid}, {"$set": {"last_comment_floor": new_floor}})
     mongo.db.comment_cool_down.update_one(
         {"uid": uid},
         {"$set": {"time": datetime.now().timestamp(), "content": content}},
@@ -74,7 +77,6 @@ def post_comment(page_type, aid):
         adjust_points_and_exp(uid, -0.2, 0.2, reason=f"在{page_type}页面发布评论")
     else:
         adjust_points_and_exp(uid, -0.2, 0.2, reason=f"在视频aid:{aid}下发布评论")
-        
 
     return jsonify({"message": "评论发布成功"})
 
@@ -82,6 +84,7 @@ def post_comment(page_type, aid):
 @bp.route('/<string:page_type>/reply/<ObjectId:comment_id>', methods=['POST'])
 @login_required
 def post_reply(page_type, comment_id):
+    """发布回复"""
     if page_type not in ALLOWED_PAGE_TYPES:
         return jsonify({"message": "Invalid URL"}), 400
     uid = session['user']['uid']
@@ -100,7 +103,8 @@ def post_reply(page_type, comment_id):
 
     # 获取评论的最后一个回复楼层号
     main_comment = mongo.db.comment.find_one({"_id": comment_id})
-    last_reply_floor = main_comment.get("last_reply_floor", 0) if main_comment else 0
+    last_reply_floor = main_comment.get(
+        "last_reply_floor", 0) if main_comment else 0
     new_floor = last_reply_floor + 1
 
     reply = {
@@ -130,6 +134,7 @@ def post_reply(page_type, comment_id):
 @bp.route('/<string:page_type>', defaults={'aid': None}, methods=['GET'])
 @bp.route('/<string:page_type>/<int:aid>', methods=['GET'])
 def get_comments(page_type, aid):
+    """获取评论"""
     if page_type not in ALLOWED_PAGE_TYPES:
         return jsonify({"message": "Invalid URL"}), 400
 
@@ -141,23 +146,24 @@ def get_comments(page_type, aid):
     cursor = mongo.db.comment.find(filter_criteria).sort("time", -1)
     comments = list(cursor)
 
-    total_floor = len(comments) # 获取评论的总数
+    total_floor = len(comments)  # 获取评论的总数
 
     for index, comment in enumerate(comments):
         comment["_id"] = str(comment["_id"])
-        
+
         user = mongo.db.user.find_one({"uid": comment["uid"]})
         comment["username"] = user["name"] if user else "未知"
         if user:
             comment["exp_rank"] = get_exp_rank(user['checkin']['experience'])
         else:
             comment["exp_rank"] = "未知"
-        
+
         for reply in comment['replies']:
             reply_user = mongo.db.user.find_one({"uid": reply["uid"]})
             reply['username'] = reply_user['name'] if reply_user else "未知"
             if reply_user:
-                reply["exp_rank"] = get_exp_rank(reply_user['checkin']['experience'])
+                reply["exp_rank"] = get_exp_rank(
+                    reply_user['checkin']['experience'])
             else:
                 reply["exp_rank"] = "未知"
 

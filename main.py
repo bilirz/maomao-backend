@@ -28,13 +28,16 @@ app.register_blueprint(danmaku.bp)
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
+    """前端路由"""
     if "." in path:
         return send_from_directory(app.static_folder, path)
-    
+
     return send_from_directory(app.static_folder, 'index.html')
+
 
 @app.errorhandler(429)
 def ratelimit_error(e):
+    """限流错误"""
     return jsonify(error="ratelimit exceeded", message=str(e.description)), 429
 
 

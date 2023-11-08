@@ -1,22 +1,22 @@
 # 第三方库导入
 import requests
-from flask import request, Blueprint, make_response
+from flask import request, Blueprint, make_response, current_app
 
 
-bp = Blueprint('public', __name__, url_prefix='/api/cos-public')
+bp = Blueprint('public', __name__, url_prefix='/api/public')
 
 
-BASE_URL = "https://cos.bilirz.com"
-
-@bp.route('/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@bp.route('/cos/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def proxy(subpath):
+    """代理COS资源"""
     method = request.method
     data = request.get_data()
 
     resp = requests.request(
         method=method,
-        url=f"{BASE_URL}/{subpath}",
-        headers={key: value for (key, value) in request.headers if key != 'Host'},
+        url=f"{current_app.config['COS_PUBLIC_URL']}/{subpath}",
+        headers={key: value for (key, value)
+                 in request.headers if key != 'Host'},
         data=data,
         cookies=request.cookies,
         allow_redirects=False  # 让Flask处理重定向
